@@ -27,7 +27,7 @@ package main
 import (
     "fmt"
 
-    "github.com/booyangcc/excel"
+    "github.com/booyangcc/excelstructure"
 )
 
 type Info struct {
