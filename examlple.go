@@ -1,22 +1,8 @@
-## Introduction
-
-Excel is a library to unmarshal excel data to struct, and alse suppoert get row data.
-
-## Basic Usag
-
-### Installation
-
-`go get github.com/booyangcc/excelstructure`
-
-### example
-
-```golang
-package main
+package excelstructure
 
 import (
 	"fmt"
 	"github.com/booyangcc/utils/convutil"
-    "github.com/booyangcc/excelstructure"
 )
 
 type Info struct {
@@ -47,13 +33,13 @@ var (
 )
 
 func TestWriteRead() {
-	w := excelstructure.NewWriter("./test_write.xlsx")
+	w := NewWriter("./test_excel_file/test_write.xlsx")
 	err := w.Write(infos)
 	if err != nil {
 		fmt.Println(err)
 	}
 
-	r := excelstructure.NewReader("./test_excel_file/test_write.xlsx")
+	r := NewReader("./test_excel_file/test_write.xlsx")
 	// because the struct field has comment tag, so the comment has been written to row 2, so when read, data offset is 2
 	r.DataIndexOffset = 2
 	var newInfo []*Info
@@ -65,7 +51,7 @@ func TestWriteRead() {
 }
 
 func TestParse() {
-	r := excelstructure.NewReader("./test_write.xlsx")
+	r := NewReader("./test_excel_file/test_write.xlsx")
 	// because the struct field has comment tag, so the comment has been written to row 2, so when read, data offset is 2
 	r.DataIndexOffset = 2
 	excelData, err := r.Parse()
@@ -96,10 +82,3 @@ func TestParse() {
 	}
 	fmt.Println(row4UserName, row4age)
 }
-
-```
-
-
-
-
-

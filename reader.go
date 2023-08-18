@@ -97,43 +97,48 @@ func (r *Reader) Parse() (*Data, error) {
 	return excelData, nil
 }
 
-// UnmarshalWithSheetIndex parse with sheet index. start with 1
-func (r *Reader) UnmarshalWithSheetIndex(index int, output interface{}) error {
+// UnmarshalWithSheetName parse with sheet index. start with 1
+func (r *Reader) UnmarshalWithSheetName(name string, output interface{}) error {
 	excelData, err := r.Parse()
 	if err != nil {
 		return err
 	}
-	var errs error
-	r.parseToStruct(index, excelData, output, &errs)
-	return errs
+
+	return r.readToStruct(name, excelData, output)
 }
 
-// Unmarshal parse with sheet index 1
+// Reader parse with sheet index 1
 // output must be a pointer slice
 // if the pointer field is pointer, and the value is empty ,the pointer field will be nil
-func (r *Reader) Unmarshal(output interface{}) error {
+func (r *Reader) Read(output interface{}) error {
 	excelData, err := r.Parse()
 	if err != nil {
 		return err
 	}
-	var errs error
-
-	r.parseToStruct(1, excelData, output, &errs)
-	return errs
+	return r.readToStruct("", excelData, output)
 }
 
-func (r *Reader) parseToStruct(sheetIndex int, excelData *Data, output interface{}, errs *error) {
-	if len(excelData.SheetIndexData) < sheetIndex {
-		*errs = multierror.Append(*errs,
-			NewError(r.FileName, "", fmt.Sprintf("sheetIndex %d", sheetIndex), ErrorSheetIndex))
+func (r *Reader) readToStruct(sheetName string, excelData *Data, output interface{}) (errs error) {
+	if sliceutil.InSlice(sheetName, excelData.SheetList) {
+		errs = multierror.Append(errs,
+			NewError(r.FileName, "", fmt.Sprintf("sheetName %s", sheetName), ErrorSheetName))
 		return
 	}
-	sheetData := excelData.SheetIndexData[sheetIndex]
-	r.currentSheetName = sheetData.SheetName
+
+	if sheetName == "" {
+		if len(excelData.SheetList) == 0 {
+			return
+		}
+		sheetName = excelData.SheetList[0]
+	}
+
+	r.currentSheetName = r.excelFile.GetSheetList()[0]
+
+	sheetData := excelData.SheetNameData[sheetName]
 
 	rv := reflect.ValueOf(output)
 	if rv.Kind() == reflect.Ptr && rv.Elem().Kind() != reflect.Slice {
-		*errs = multierror.Append(*errs,
+		errs = multierror.Append(errs,
 			NewError(r.FileName, r.currentSheetName, "", ErrorInOutputType))
 		return
 	}
@@ -142,7 +147,7 @@ func (r *Reader) parseToStruct(sheetIndex int, excelData *Data, output interface
 	sliceElemType := sliceType.Elem()
 	sliceElemStructType, err := getSliceElemType(r.FileName, r.currentSheetName, rv)
 	if err != nil {
-		*errs = multierror.Append(*errs, err)
+		errs = multierror.Append(errs, err)
 		return
 	}
 	tagMap := parseFiledTagSetting(sliceElemStructType)
@@ -164,9 +169,11 @@ func (r *Reader) parseToStruct(sheetIndex int, excelData *Data, output interface
 
 	}
 	rv.Elem().Set(arr)
+
+	return
 }
 
-func (r *Reader) appendError(errs *error, err error) {
+func (r *Reader) appendError(errs error, err error) {
 	if errs == nil {
 		return
 	}
@@ -180,7 +187,7 @@ func (r *Reader) appendError(errs *error, err error) {
 	if _, ok := r.errsMap[err.Error()]; ok {
 		return
 	}
-	*errs = multierror.Append(*errs, err)
+	errs = multierror.Append(errs, err)
 	r.errsMap[err.Error()] = err
 }
 
@@ -316,6 +323,16 @@ func (r *Reader) getExcelFileData() (*Data, error) {
 		if err != nil {
 			return nil, NewError(fileName, sheetName, fmt.Sprintf("sheet index %d", sheetIndex), err)
 		}
+		if len(rows) == 0 {
+			sheetData := &SheetData{
+				SheetName:       sheetName,
+				FileName:        fileName,
+				DataIndexOffset: r.DataIndexOffset,
+			}
+			sheetIndexData[sheetIndex] = sheetData
+			sheetNameData[sheetName] = sheetData
+			continue
+		}
 		// 输入数据为excel直观的行数 从1开始
 		sheetFields := rows[r.fieldHeadRowIndex-1]
 
@@ -361,6 +378,7 @@ func (r *Reader) getExcelFileData() (*Data, error) {
 		SheetIndexData: sheetIndexData,
 		SheetNameData:  sheetNameData,
 		SheetTotal:     r.excelFile.SheetCount,
+		SheetList:      r.excelFile.GetSheetList(),
 	}
 
 	return excelData, nil

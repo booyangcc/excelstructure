@@ -39,6 +39,7 @@ type Data struct {
 	SheetIndexData map[int]*SheetData
 	SheetNameData  map[string]*SheetData
 	SheetTotal     int
+	SheetList      []string
 }
 
 // GetCell get cell.

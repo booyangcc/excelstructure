@@ -27,59 +27,62 @@ func NewWriter(fileName string) *Writer {
 	}
 }
 
-// Marshal struct to excel
-func (w *Writer) Marshal(input interface{}) error {
-	var errs error
-	w.marshalToExcel(w.FileName, input, &errs)
-	return errs
+// Write struct to excel
+func (w *Writer) Write(input interface{}) error {
+	return w.writeToExcel(w.FileName, input)
 }
 
-func (w *Writer) marshalToExcel(fileName string, input interface{}, errs *error) {
-
+func (w *Writer) writeToExcel(fileName string, input interface{}) (errs error) {
 	rv := reflect.Indirect(reflect.ValueOf(input))
 	if rv.Kind() != reflect.Slice {
-		*errs = multierror.Append(*errs,
+		errs = multierror.Append(errs,
 			NewError(w.FileName, w.currentSheetName, "", ErrorInOutputType))
 		return
 	}
 
-	excelFile := excelize.NewFile()
-	defer func() {
-		if err := excelFile.SaveAs(fileName); err != nil {
-			*errs = multierror.Append(*errs,
-				NewError(w.FileName, w.currentSheetName, "", err))
-		}
-	}()
 	if rv.Len() == 0 {
 		return
 	}
 
 	sliceElemStructType, err := getSliceElemType(w.FileName, w.currentSheetName, rv)
 	if err != nil {
-		*errs = multierror.Append(*errs, err)
+		errs = multierror.Append(errs, err)
 		return
 	}
 	tagMap := parseFiledTagSetting(sliceElemStructType)
 
+	excelFile := excelize.NewFile()
+
 	sheetName := fmt.Sprintf("%ss", sliceElemStructType.Name())
 	_, err = excelFile.NewSheet(sheetName)
 	if err != nil {
-		*errs = multierror.Append(*errs, err)
+		errs = multierror.Append(errs, err)
 		return
 	}
-
 	w.currentSheetName = sheetName
+
 	err = w.writeHead(excelFile, tagMap, sliceElemStructType)
 	if err != nil {
-		*errs = multierror.Append(*errs, err)
+		errs = multierror.Append(errs, err)
+		return
+	}
+	err = w.writeData(excelFile, tagMap, rv)
+	if err != nil {
+		errs = multierror.Append(errs, err)
 		return
 	}
 
-	err = w.writeData(excelFile, tagMap, rv)
+	err = excelFile.DeleteSheet(excelFile.GetSheetList()[0])
 	if err != nil {
-		*errs = multierror.Append(*errs, err)
+		errs = multierror.Append(errs, err)
 		return
 	}
+
+	if err = excelFile.SaveAs(fileName); err != nil {
+		errs = multierror.Append(errs,
+			NewError(w.FileName, w.currentSheetName, "", err))
+	}
+	return
 }
 
 func (w *Writer) writeData(ef *excelize.File, tagMap map[string]TagSetting, rv reflect.Value) error {
@@ -157,7 +160,7 @@ func (w *Writer) writeHead(ef *excelize.File, tagMap map[string]TagSetting, slic
 		return err
 	}
 	if hasComment {
-		err = ef.SetSheetRow(w.currentSheetName, "A2", &heads)
+		err = ef.SetSheetRow(w.currentSheetName, "A2", &comments)
 		if err != nil {
 			return err
 		}

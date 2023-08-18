@@ -10,8 +10,6 @@ var (
 	ErrorDataRowOutOfRange = errors.New("out of range")
 	// ErrorRowIndexIsHeader row index is header
 	ErrorRowIndexIsHeader = errors.New("row index must > 1, because row 1 is header")
-	// ErrorSheetIndex sheet index invalid
-	ErrorSheetIndex = errors.New("sheet index out of range")
 	// ErrorSheetName sheet name invalid
 	ErrorSheetName = errors.New("sheet name not exist")
 	// ErrorInOutputType output type invalid
@@ -37,6 +35,8 @@ var (
 	ErrorFieldInvalid = errors.New("pointer or field invalid")
 	// ErrorFieldValueEmpty  field empty
 	ErrorFieldValueEmpty = errors.New("value is empty")
+	// ErrorNoData no data
+	ErrorNoData = errors.New("no data")
 )
 
 // Error excel structure error

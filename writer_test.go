@@ -24,6 +24,6 @@ func TestWriter_Marshal(t *testing.T) {
 			Address: "shanghai",
 		},
 	}
-	err := w.Marshal(infos)
+	err := w.Write(infos)
 	assert.NoError(t, err)
 }
