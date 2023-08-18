@@ -1,4 +1,4 @@
-package excel
+package excelstructure
 
 import (
 	"reflect"
@@ -17,10 +17,9 @@ type TagSetting struct {
 	// 	Type string
 	Type string
 	// 	default value
-	Default   string
-	Comment   string
-	OmitEmpty bool
-	Skip      bool
+	Default string
+	Comment string
+	Skip    bool
 }
 
 func parseTagSetting(str, sep, kvSep string) map[string]string {
@@ -41,7 +40,7 @@ func parseTagSetting(str, sep, kvSep string) map[string]string {
 	return settings
 }
 
-func parseFiledTagSetting(sliceElemType reflect.Type) (map[string]TagSetting, error) {
+func parseFiledTagSetting(sliceElemType reflect.Type) map[string]TagSetting {
 	tagFiledMap := make(map[string]TagSetting)
 
 	for i := 0; i < sliceElemType.NumField(); i++ {
@@ -52,15 +51,14 @@ func parseFiledTagSetting(sliceElemType reflect.Type) (map[string]TagSetting, er
 		}
 		kvm := parseTagSetting(tag, ";", ":")
 		tagFiled := TagSetting{
-			Column:    kvm["column"],
-			Type:      kvm["type"],
-			Default:   kvm["default"],
-			Comment:   kvm["comment"],
-			OmitEmpty: kvm["omitempty"] == "omitempty",
-			Skip:      kvm["skip"] == "skip",
+			Column:  kvm["column"],
+			Type:    kvm["type"],
+			Default: kvm["default"],
+			Comment: kvm["comment"],
+			Skip:    kvm["skip"] == "skip",
 		}
 		tagFiledMap[field.Name] = tagFiled
 	}
 
-	return tagFiledMap, nil
+	return tagFiledMap
 }

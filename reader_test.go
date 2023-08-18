@@ -1,4 +1,4 @@
-package excel
+package excelstructure
 
 import (
 	"fmt"
@@ -18,7 +18,7 @@ type Info struct {
 
 func TestParser_UnmarshalWithSheetIndex(t *testing.T) {
 	var info []*Info
-	p := NewParser("./test_excel_file/test.xlsx")
+	p := NewReader("./test_excel_file/test.xlsx")
 	err := p.UnmarshalWithSheetIndex(2, &info)
 	if err != nil {
 		assert.Error(t, err)
@@ -29,7 +29,7 @@ func TestParser_UnmarshalWithSheetIndex(t *testing.T) {
 
 func TestParser_Unmarshal(t *testing.T) {
 	var info []*Info
-	p := NewParser("./test_excel_file/test.xlsx")
+	p := NewReader("./test_excel_file/test.xlsx")
 	err := p.Unmarshal(&info)
 	if err != nil {
 		assert.Error(t, err)
@@ -42,7 +42,7 @@ func TestParser_Unmarshal(t *testing.T) {
 // first row is title,second row is comment
 func TestParser_UnmarshalWithComment(t *testing.T) {
 	var info []*Info
-	p := NewParser("./test_excel_file/test_with_comment.xlsx")
+	p := NewReader("./test_excel_file/test_with_comment.xlsx")
 	p.DataIndexOffset = 2
 	err := p.Unmarshal(&info)
 	if err != nil {
@@ -54,7 +54,7 @@ func TestParser_UnmarshalWithComment(t *testing.T) {
 
 func TestParser_UnmarshalWithCheckEmpty(t *testing.T) {
 	var info []*Info
-	p := NewParser("./test_excel_file/test_check_empty.xlsx")
+	p := NewReader("./test_excel_file/test_check_empty.xlsx")
 	p.IsCheckEmpty = true
 	err := p.Unmarshal(&info)
 	// one row is empty, so the error is not nil, "C3 field age value is empty"
@@ -65,7 +65,7 @@ func TestParser_UnmarshalWithCheckEmpty(t *testing.T) {
 }
 
 func TestSheetData_GetIntValue1(t *testing.T) {
-	p := NewParser("./test_excel_file/test.xlsx")
+	p := NewReader("./test_excel_file/test.xlsx")
 	data, err := p.Parse()
 	if err != nil {
 		fmt.Println(err)

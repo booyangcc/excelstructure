@@ -1,4 +1,4 @@
-module github.com/booyangcc/excel
+module github.com/booyangcc/excelstructure
 
 go 1.20
 
