@@ -47,17 +47,16 @@ var (
 )
 
 func TestWriteRead() {
-	w := excelstructure.NewWriter("./test_write.xlsx")
-	err := w.Write(infos)
+	p := excelstructure.NewParser("./test_write.xlsx")
+	err := p.Write(infos)
 	if err != nil {
 		fmt.Println(err)
 	}
 
-	r := excelstructure.NewReader("./test_excel_file/test_write.xlsx")
 	// because the struct field has comment tag, so the comment has been written to row 2, so when read, data offset is 2
-	r.DataIndexOffset = 2
+	p.DataIndexOffset = 2
 	var newInfo []*Info
-	err = r.Read(&newInfo)
+	err = p.Read(&newInfo)
 	if err != nil {
 		fmt.Println(err)
 	}
@@ -65,7 +64,7 @@ func TestWriteRead() {
 }
 
 func TestParse() {
-	r := excelstructure.NewReader("./test_write.xlsx")
+	r := excelstructure.NewParser("./test_write.xlsx")
 	// because the struct field has comment tag, so the comment has been written to row 2, so when read, data offset is 2
 	r.DataIndexOffset = 2
 	excelData, err := r.Parse()

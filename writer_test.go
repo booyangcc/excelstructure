@@ -7,7 +7,7 @@ import (
 )
 
 func TestWriter_Marshal(t *testing.T) {
-	w := NewWriter("./test_excel_file/test_write.xlsx")
+	w := NewParser("./test_excel_file/test_write.xlsx")
 	infos := []*Info{
 		{
 			Name:    "booyang",

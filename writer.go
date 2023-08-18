@@ -7,36 +7,16 @@ import (
 	"reflect"
 )
 
-// Writer write.
-type Writer struct {
-	FileName         string
-	currentSheetName string
-	errsMap          map[string]error
-	// AllowFieldRepeat 允许表头字段重复
-	AllowFieldRepeat bool
-	hasComment       bool
-	dataRowOffset    int
-}
-
-// NewWriter 传入文件名
-func NewWriter(fileName string) *Writer {
-	return &Writer{
-		FileName:      fileName,
-		errsMap:       make(map[string]error),
-		dataRowOffset: 1,
-	}
-}
-
 // Write struct to excel
-func (w *Writer) Write(input interface{}) error {
-	return w.writeToExcel(w.FileName, input)
+func (p *Parser) Write(input interface{}) error {
+	return p.writeToExcel(p.FileName, input)
 }
 
-func (w *Writer) writeToExcel(fileName string, input interface{}) (errs error) {
+func (p *Parser) writeToExcel(fileName string, input interface{}) (errs error) {
 	rv := reflect.Indirect(reflect.ValueOf(input))
 	if rv.Kind() != reflect.Slice {
 		errs = multierror.Append(errs,
-			NewError(w.FileName, w.currentSheetName, "", ErrorInOutputType))
+			NewError(p.FileName, p.currentSheetName, "", ErrorInOutputType))
 		return
 	}
 
@@ -44,7 +24,7 @@ func (w *Writer) writeToExcel(fileName string, input interface{}) (errs error) {
 		return
 	}
 
-	sliceElemStructType, err := getSliceElemType(w.FileName, w.currentSheetName, rv)
+	sliceElemStructType, err := getSliceElemType(p.FileName, p.currentSheetName, rv)
 	if err != nil {
 		errs = multierror.Append(errs, err)
 		return
@@ -59,14 +39,14 @@ func (w *Writer) writeToExcel(fileName string, input interface{}) (errs error) {
 		errs = multierror.Append(errs, err)
 		return
 	}
-	w.currentSheetName = sheetName
+	p.currentSheetName = sheetName
 
-	err = w.writeHead(excelFile, tagMap, sliceElemStructType)
+	err = p.writeHead(excelFile, tagMap, sliceElemStructType)
 	if err != nil {
 		errs = multierror.Append(errs, err)
 		return
 	}
-	err = w.writeData(excelFile, tagMap, rv)
+	err = p.writeData(excelFile, tagMap, rv)
 	if err != nil {
 		errs = multierror.Append(errs, err)
 		return
@@ -80,12 +60,12 @@ func (w *Writer) writeToExcel(fileName string, input interface{}) (errs error) {
 
 	if err = excelFile.SaveAs(fileName); err != nil {
 		errs = multierror.Append(errs,
-			NewError(w.FileName, w.currentSheetName, "", err))
+			NewError(p.FileName, p.currentSheetName, "", err))
 	}
 	return
 }
 
-func (w *Writer) writeData(ef *excelize.File, tagMap map[string]TagSetting, rv reflect.Value) error {
+func (p *Parser) writeData(ef *excelize.File, tagMap map[string]TagSetting, rv reflect.Value) error {
 	for i := 0; i < rv.Len(); i++ {
 		elemValue := rv.Index(i)
 		elemType := elemValue.Type()
@@ -116,11 +96,11 @@ func (w *Writer) writeData(ef *excelize.File, tagMap map[string]TagSetting, rv r
 			rowData = append(rowData, realElemValue)
 		}
 
-		coords, err := excelize.CoordinatesToCellName(1, w.dataRowOffset+i+1)
+		coords, err := excelize.CoordinatesToCellName(1, p.DataIndexOffset+i+1)
 		if err != nil {
 			return err
 		}
-		err = ef.SetSheetRow(w.currentSheetName, coords, &rowData)
+		err = ef.SetSheetRow(p.currentSheetName, coords, &rowData)
 		if err != nil {
 			return err
 		}
@@ -128,7 +108,7 @@ func (w *Writer) writeData(ef *excelize.File, tagMap map[string]TagSetting, rv r
 	return nil
 }
 
-func (w *Writer) writeHead(ef *excelize.File, tagMap map[string]TagSetting, sliceElemType reflect.Type) error {
+func (p *Parser) writeHead(ef *excelize.File, tagMap map[string]TagSetting, sliceElemType reflect.Type) error {
 	heads := make([]string, 0)
 	comments := make([]string, 0)
 	hasComment := false
@@ -155,18 +135,18 @@ func (w *Writer) writeHead(ef *excelize.File, tagMap map[string]TagSetting, slic
 		}
 	}
 
-	err := ef.SetSheetRow(w.currentSheetName, "A1", &heads)
+	err := ef.SetSheetRow(p.currentSheetName, "A1", &heads)
 	if err != nil {
 		return err
 	}
 	if hasComment {
-		err = ef.SetSheetRow(w.currentSheetName, "A2", &comments)
+		err = ef.SetSheetRow(p.currentSheetName, "A2", &comments)
 		if err != nil {
 			return err
 		}
-		w.dataRowOffset = 2
+		p.DataIndexOffset = 2
 	}
-	w.hasComment = hasComment
+	p.hasComment = hasComment
 	return nil
 }
 
