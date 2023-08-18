@@ -110,7 +110,7 @@ func (w *Writer) writeData(ef *excelize.File, tagMap map[string]TagSetting, rv r
 			if elemValue.Field(j).Kind() == reflect.Ptr {
 				realElemValue = elemValue.Field(j).Elem().Interface()
 			}
-			if elemValue.Field(j).IsZero() {
+			if elemValue.Field(j).IsZero() && filedTagSetting.Default != "" {
 				realElemValue = filedTagSetting.Default
 			}
 			rowData = append(rowData, realElemValue)
