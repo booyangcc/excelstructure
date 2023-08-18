@@ -6,7 +6,7 @@ Excel is a library to unmarshal excel data to struct, and alse suppoert get row 
 
 ### Installation
 
-`go get github.com/booyangcc/excel`
+`go get github.com/booyangcc/excelstructure`
 
 ### example
 
@@ -27,7 +27,7 @@ package main
 import (
     "fmt"
 
-    "github.com/booyangcc/excel"
+    "github.com/booyangcc/excelstructure"
 )
 
 type Info struct {
