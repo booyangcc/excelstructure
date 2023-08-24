@@ -8,10 +8,10 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestParser_UnmarshalWithSheetIndex(t *testing.T) {
+func TestParser_ReadWithSheetIndex(t *testing.T) {
 	var info []*Info
 	p := NewParser("./test_excel_file/test.xlsx")
-	err := p.UnmarshalWithSheetName("Sheet1", &info)
+	err := p.ReadWithSheetName("Sheet1", &info)
 	if err != nil {
 		assert.Error(t, err)
 	}
@@ -19,7 +19,7 @@ func TestParser_UnmarshalWithSheetIndex(t *testing.T) {
 	require.Equal(t, "booyang1", info[0].Name)
 }
 
-func TestParser_Unmarshal(t *testing.T) {
+func TestParser_Read(t *testing.T) {
 	var info []*Info
 	p := NewParser("./test_excel_file/test.xlsx")
 	err := p.Read(&info)
@@ -32,7 +32,7 @@ func TestParser_Unmarshal(t *testing.T) {
 
 // excel data index offset is 2, the first two rows are not data,
 // first row is title,second row is comment
-func TestParser_UnmarshalWithComment(t *testing.T) {
+func TestParser_ReadWithComment(t *testing.T) {
 	var info []*Info
 	p := NewParser("./test_excel_file/test_with_comment.xlsx")
 	p.DataIndexOffset = 2
@@ -44,7 +44,7 @@ func TestParser_UnmarshalWithComment(t *testing.T) {
 	require.Equal(t, "booyang", info[0].Name)
 }
 
-func TestParser_UnmarshalWithCheckEmpty(t *testing.T) {
+func TestParser_ReadWithCheckEmpty(t *testing.T) {
 	var info []*Info
 	p := NewParser("./test_excel_file/test_check_empty.xlsx")
 	p.IsCheckEmpty = true

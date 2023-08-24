@@ -40,8 +40,8 @@ func (p *Parser) Parse() (*Data, error) {
 	return excelData, nil
 }
 
-// UnmarshalWithSheetName parse with sheet index. start with 1
-func (p *Parser) UnmarshalWithSheetName(name string, output interface{}) error {
+// ReadWithSheetName parse with sheet index. start with 1
+func (p *Parser) ReadWithSheetName(name string, output interface{}) error {
 	excelData, err := p.Parse()
 	if err != nil {
 		return err
