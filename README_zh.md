@@ -19,41 +19,72 @@ import (
     "github.com/booyangcc/excelstructure"
 )
 
+type Detail struct {
+	Height int    `json:"height"`
+	Weight int    `json:"weight"`
+	Nation string `json:"nation"`
+}
+
 type Info struct {
-	Name    string  `excel:"column:user_name;comment:person name"`
-	Phone   *string `excel:"column:phone;comment:phone number"`
-	Age     string  `excel:"column:age;"`
-	Man     bool    `excel:"column:man;default:true"`
-	Address string  `excel:"column:address;skip"` // skip 代表这个字段不解析也不写入excel
+	Name    string   `excel:"column:user_name;comment:person name"`
+	Phone   *string  `excel:"column:phone;comment:phone number"`
+	Age     string   `excel:"column:age;"`
+	Man     bool     `excel:"column:man;default:true"`
+	Address []string `excel:"column:address;serializer:mySerializer"`
+	Detail Detail   `excel:"column:details;serializer:mySerializer"` // u can use custom serializer,default json serializer
 }
 
 var (
-	infos = []*Info{
+	mySerializer = Serializer{
+		Marshal: func(v interface{}) (string, error) {
+			bs, err := json.Marshal(v)
+			if err != nil {
+				return "", err
+			}
+			return string(bs), nil
+		},
+		Unmarshal: func(s string, v interface{}) error {
+			return json.Unmarshal([]byte(s), v)
+		},
+	}
+)
+
+func TestWriteRead() {
+	infos := []*Info{
 		{
 			Name:    "booyang",
 			Phone:   convutil.String("123456789"),
 			Age:     "18",
 			Man:     true,
-			Address: "beijing",
+			Address: []string{"beijing", "shanghai"},
+			Detail: Detail{
+				Height: 180,
+				Weight: 70,
+				Nation: "China",
+			},
 		},
 		{
 			Name:    "booyang1",
 			Phone:   convutil.String("123456789"),
 			Age:     "14",
 			Man:     false,
-			Address: "shanghai",
+			Address: []string{"guangzhou", "xian"},
+			Detail: Detail{
+				Height: 181,
+				Weight: 60,
+				Nation: "Britain",
+			},
 		},
 	}
-)
-
-func TestWriteRead() {
-	p := excelstructure.NewParser("./test_write.xlsx")
+	p := NewParser("./test_excel_file/test_write.xlsx")
+	// use custom serializer
+	p.RegisterSerializer("mySerializer", mySerializer)
 	err := p.Write(infos)
 	if err != nil {
 		fmt.Println(err)
 	}
 
-	// 因为写入的结构体有comment字段故第二行为comment，所以读取的时候偏移量为2
+	// because the struct field has comment tag, so the comment has been written to row 2, so when read, data offset is 2
 	p.DataIndexOffset = 2
 	var newInfo []*Info
 	err = p.Read(&newInfo)
@@ -64,10 +95,12 @@ func TestWriteRead() {
 }
 
 func TestParse() {
-	r := excelstructure.NewParser("./test_write.xlsx")
-	// 因为写入的结构体有comment字段故第二行为comment，所以读取的时候偏移量为2
-	r.DataIndexOffset = 2
-	excelData, err := r.Parse()
+	p := NewParser("./test_excel_file/test_write.xlsx")
+	// use custom serializer
+	p.RegisterSerializer("mySerializer", mySerializer)
+	// because the struct field has comment tag, so the comment has been written to row 2, so when read, data offset is 2
+	p.DataIndexOffset = 2
+	excelData, err := p.Parse()
 	if err != nil {
 		fmt.Println(err)
 	}
@@ -97,15 +130,18 @@ func TestParse() {
 }
 
 ```
+***excel data*** 输出的excel
+![输出数据](./imgs/test_write.png)
 ## 使用
 
 ### tag配置
 tag字段设置,tag名称`excel`
-> Name string `excel:"column:user_name;comment:person name;skip;default:boo"`
+> Name string `excel:"column:user_name;comment:person name;skip;default:boo;serializer:mySerializer"`
 - column：解析或写入excel的head头
 - comment：任意一结构体的字段exceltag 包含了这个配置，则输出excel的时候第二行为comment
 - skip：标注当前字段跳过，不解析也不写入excel
 - default：解析或设置如果字段为零值则使用default替换
+- serializer: 结构体，切片，Interface等类型的序列化与反序列化，支持自定义
 
 
 ### parser使用
@@ -121,6 +157,7 @@ parser参数
 ### 解析结构体到excel
 ```golang
 p := excelstructure.NewParser("./test_write.xlsx")
+p.RegisterSerializer("mySerializer", mySerializer)
 err := p.Write(infos)  
 if err != nil {  
     fmt.Println(err)  
@@ -130,6 +167,8 @@ if err != nil {
 #### 使用方式一，直接解析到结构体
 ```golang
 p := NewParser("./test_write.xlsx")
+// use custom serializer
+p.RegisterSerializer("mySerializer", mySerializer)
 // 因为写入的结构体有comment字段故第二行为comment，所以读取的时候偏移量为2
 p.DataIndexOffset = 2
 var newInfo []*Info

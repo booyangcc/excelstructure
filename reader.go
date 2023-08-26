@@ -137,6 +137,7 @@ func (p *Parser) parseRowToStruct(
 		if skip {
 			continue
 		}
+
 		cell, err1 := sheetData.GetCell(rowIndex, columnName)
 		if err1 != nil {
 			return err1
@@ -147,13 +148,11 @@ func (p *Parser) parseRowToStruct(
 		}
 
 		fieldValue := ve.Elem().FieldByName(field.Name)
-
 		fieldType := field.Type
 		if fieldType.Kind() == reflect.Ptr {
 			fieldType = fieldType.Elem()
 		}
 		fieldTypeKind := uint(fieldType.Kind())
-		fmt.Println(fieldType.Kind().String())
 		if (uint(reflect.Invalid) < fieldTypeKind && fieldTypeKind < uint(reflect.Float64)) ||
 			fieldTypeKind == uint(reflect.String) {
 			err = p.fieldSetAll(fieldValue, cell, df)
@@ -195,8 +194,6 @@ func (p *Parser) fieldUmarshal(field reflect.Value, cell *Cell, serializerName s
 	if !field.CanSet() {
 		return NewError(p.FileName, p.currentSheetName, cell.Coordinates, ErrorFieldNotSet)
 	}
-
-	fmt.Println(fieldType.Kind().String(), newField.Type().String())
 
 	field.Set(newField.Elem())
 	return nil

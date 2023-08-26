@@ -1,39 +1,72 @@
 package excelstructure
 
 import (
+	"encoding/json"
 	"fmt"
+
 	"github.com/booyangcc/utils/convutil"
 )
 
+type Detail struct {
+	Height int    `json:"height"`
+	Weight int    `json:"weight"`
+	Nation string `json:"nation"`
+}
+
 type Info struct {
-	Name    string  `excel:"column:user_name;comment:person name"`
-	Phone   *string `excel:"column:phone;comment:phone number"`
-	Age     string  `excel:"column:age;"`
-	Man     bool    `excel:"column:man;default:true"`
-	Address string  `excel:"column:address;skip"` // skip this field
+	Name    string   `excel:"column:user_name;comment:person name"`
+	Phone   *string  `excel:"column:phone;comment:phone number"`
+	Age     string   `excel:"column:age;"`
+	Man     bool     `excel:"column:man;default:true"`
+	Address []string `excel:"column:address;serializer:mySerializer"`
+	Detail  Detail   `excel:"column:details;serializer:mySerializer"` // u can use custom serializer,default json serializer
 }
 
 var (
-	infos = []*Info{
+	mySerializer = Serializer{
+		Marshal: func(v interface{}) (string, error) {
+			bs, err := json.Marshal(v)
+			if err != nil {
+				return "", err
+			}
+			return string(bs), nil
+		},
+		Unmarshal: func(s string, v interface{}) error {
+			return json.Unmarshal([]byte(s), v)
+		},
+	}
+)
+
+func TestWriteRead() {
+	infos := []*Info{
 		{
 			Name:    "booyang",
 			Phone:   convutil.String("123456789"),
 			Age:     "18",
 			Man:     true,
-			Address: "beijing",
+			Address: []string{"beijing", "shanghai"},
+			Detail: Detail{
+				Height: 180,
+				Weight: 70,
+				Nation: "China",
+			},
 		},
 		{
 			Name:    "booyang1",
 			Phone:   convutil.String("123456789"),
 			Age:     "14",
 			Man:     false,
-			Address: "shanghai",
+			Address: []string{"guangzhou", "xian"},
+			Detail: Detail{
+				Height: 181,
+				Weight: 60,
+				Nation: "Britain",
+			},
 		},
 	}
-)
-
-func TestWriteRead() {
 	p := NewParser("./test_excel_file/test_write.xlsx")
+	// use custom serializer
+	p.RegisterSerializer("mySerializer", mySerializer)
 	err := p.Write(infos)
 	if err != nil {
 		fmt.Println(err)
@@ -51,6 +84,8 @@ func TestWriteRead() {
 
 func TestParse() {
 	p := NewParser("./test_excel_file/test_write.xlsx")
+	// use custom serializer
+	p.RegisterSerializer("mySerializer", mySerializer)
 	// because the struct field has comment tag, so the comment has been written to row 2, so when read, data offset is 2
 	p.DataIndexOffset = 2
 	excelData, err := p.Parse()
