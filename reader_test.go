@@ -1,14 +1,13 @@
 package excelstructure
 
 import (
-	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-func TestParser_ReadWithSheetIndex(t *testing.T) {
+func Test_ParseReadWithSheetIndex(t *testing.T) {
 	var info []*Info
 	p := NewParser("./test_excel_file/test.xlsx")
 	err := p.ReadWithSheetName("Sheet1", &info)
@@ -19,7 +18,7 @@ func TestParser_ReadWithSheetIndex(t *testing.T) {
 	require.Equal(t, "booyang1", info[0].Name)
 }
 
-func TestParser_Read(t *testing.T) {
+func Test_ParseRead(t *testing.T) {
 	var info []*Info
 	p := NewParser("./test_excel_file/test.xlsx")
 	err := p.Read(&info)
@@ -32,7 +31,7 @@ func TestParser_Read(t *testing.T) {
 
 // excel data index offset is 2, the first two rows are not data,
 // first row is title,second row is comment
-func TestParser_ReadWithComment(t *testing.T) {
+func Test_ParseReadWithComment(t *testing.T) {
 	var info []*Info
 	p := NewParser("./test_excel_file/test_with_comment.xlsx")
 	p.DataIndexOffset = 2
@@ -44,7 +43,7 @@ func TestParser_ReadWithComment(t *testing.T) {
 	require.Equal(t, "booyang", info[0].Name)
 }
 
-func TestParser_ReadWithCheckEmpty(t *testing.T) {
+func Test_ParseReadWithCheckEmpty(t *testing.T) {
 	var info []*Info
 	p := NewParser("./test_excel_file/test_check_empty.xlsx")
 	p.IsCheckEmpty = true
@@ -56,18 +55,29 @@ func TestParser_ReadWithCheckEmpty(t *testing.T) {
 	require.Equal(t, "booyang", info[0].Name)
 }
 
-func TestSheetData_GetIntValue1(t *testing.T) {
-	p := NewParser("./test_excel_file/test.xlsx")
-	data, err := p.Parse()
-	if err != nil {
-		fmt.Println(err)
-	}
-	s := data.SheetIndexData[1]
-	row2, err := s.GetIntValue(2, "age")
-	assert.NoError(t, err)
-	require.Equal(t, 20, row2)
+type Detail struct {
+	Height int    `json:"height"`
+	Weight int    `json:"weight"`
+	Nation string `json:"nation"`
+}
 
-	row3, err := s.GetIntValueWithMultiError(3, "age", err)
+type Person struct {
+	Name    string   `excel:"column:user_name;comment:person name"`
+	Age     int      `excel:"column:age;"`
+	Man     bool     `excel:"column:man;default:true"`
+	Address []string `excel:"column:address;serializer"`
+	Details *Detail  `excel:"column:details;serializer:json"`
+}
+
+func Test_ParseReadWithSerializer(t *testing.T) {
+	var persons []*Person
+	p := NewParser("./test_excel_file/test_serializer.xlsx")
+	err := p.Read(&persons)
 	assert.NoError(t, err)
-	require.Equal(t, 3, row3)
+	require.Equal(t, 2, len(persons))
+	require.Equal(t, "booyang1", persons[0].Name)
+	// ["陕西省西安市雁塔区","陕西省延安市宝塔区"]
+	require.Equal(t, 2, len(persons[0].Address))
+	// {"height":180,"weight":70,"nation":"China"}
+	require.Equal(t, "China", persons[0].Details.Nation)
 }

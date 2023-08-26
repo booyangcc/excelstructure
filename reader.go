@@ -7,38 +7,7 @@ import (
 
 	sliceutil "github.com/booyangcc/utils/sliceutil"
 	"github.com/hashicorp/go-multierror"
-
-	"github.com/xuri/excelize/v2"
 )
-
-// Parse parse.
-func (p *Parser) Parse() (*Data, error) {
-	fileName := p.FileName
-	excelFile, err := excelize.OpenFile(fileName)
-	if err != nil {
-		return nil, NewError(fileName, "", "", err)
-	}
-	defer func() {
-		if err1 := excelFile.Close(); err1 != nil {
-			fmt.Println(err1.Error())
-		}
-	}()
-
-	p.excelFile = excelFile
-	if p.fieldHeadRowIndex < 1 {
-		p.fieldHeadRowIndex = 1
-	}
-	if p.DataIndexOffset < 1 {
-		p.DataIndexOffset = 1
-	}
-
-	excelData, err := p.getExcelFileData()
-	if err != nil {
-		return nil, NewError(fileName, "", "", err)
-	}
-	p.ExcelData = excelData
-	return excelData, nil
-}
 
 // ReadWithSheetName parse with sheet index. start with 1
 func (p *Parser) ReadWithSheetName(name string, output interface{}) error {
@@ -93,7 +62,7 @@ func (p *Parser) readToStruct(sheetName string, excelData *Data, output interfac
 		errs = multierror.Append(errs, err)
 		return
 	}
-	tagMap := parseFiledTagSetting(sliceElemStructType)
+	tagMap := parseFieldTagSetting(sliceElemStructType)
 
 	arr := reflect.MakeSlice(sliceType, 0, 0)
 	for i := range sheetData.Rows {
@@ -120,9 +89,11 @@ func (p *Parser) appendError(errs error, err error) {
 	if errs == nil {
 		return
 	}
+
 	if err == nil {
 		return
 	}
+
 	if p.errsMap == nil {
 		p.errsMap = make(map[string]error)
 	}
@@ -130,6 +101,7 @@ func (p *Parser) appendError(errs error, err error) {
 	if _, ok := p.errsMap[err.Error()]; ok {
 		return
 	}
+
 	errs = multierror.Append(errs, err)
 	p.errsMap[err.Error()] = err
 }
@@ -141,22 +113,25 @@ func (p *Parser) parseRowToStruct(
 	if ve.Kind() != reflect.Ptr {
 		return NewError(p.FileName, p.currentSheetName, fmt.Sprintf("row %d", rowIndex), ErrorTypePointer)
 	}
+
 	if !ve.IsValid() {
 		return NewError(p.FileName, p.currentSheetName, fmt.Sprintf("row %d", rowIndex), ErrorFieldInvalid)
 	}
+
 	vek := reflect.Indirect(ve)
 	createStruct := vek.Type()
 	for i := 0; i < createStruct.NumField(); i++ {
 		field := createStruct.Field(i)
 		tag := field.Tag
 		et := tag.Get(TagName)
-		columnName, df, skip := field.Name, "", false
+		columnName, df, skip, serializer := field.Name, "", false, "json"
 		if len(et) > 0 {
 			val, ok := tagMap[field.Name]
 			if ok {
 				columnName = val.Column
 				df = val.Default
 				skip = val.Skip
+				serializer = val.Serializer
 			}
 		}
 		if skip {
@@ -167,23 +142,72 @@ func (p *Parser) parseRowToStruct(
 			return err1
 		}
 
-		err = p.filedSetAll(ve.Elem().FieldByName(field.Name), cell, df)
-		if err != nil {
-			return err
+		if p.IsCheckEmpty && cell.IsEmpty {
+			return NewError(p.FileName, p.currentSheetName, cell.Coordinates, ErrorFieldValueEmpty)
+		}
+
+		fieldValue := ve.Elem().FieldByName(field.Name)
+
+		fieldType := field.Type
+		if fieldType.Kind() == reflect.Ptr {
+			fieldType = fieldType.Elem()
+		}
+		fieldTypeKind := uint(fieldType.Kind())
+		fmt.Println(fieldType.Kind().String())
+		if (uint(reflect.Invalid) < fieldTypeKind && fieldTypeKind < uint(reflect.Float64)) ||
+			fieldTypeKind == uint(reflect.String) {
+			err = p.fieldSetAll(fieldValue, cell, df)
+			if err != nil {
+				return err
+			}
+		} else {
+			err = p.fieldUmarshal(fieldValue, cell, serializer)
+			if err != nil {
+				return err
+			}
 		}
 
 	}
 	return err
 }
 
-func (p *Parser) filedSetAll(field reflect.Value, cell *Cell, defaultValue string) error {
-	value := cell.Value
-	if p.IsCheckEmpty && cell.IsEmpty {
-		return NewError(p.FileName, p.currentSheetName, cell.Coordinates, ErrorFieldValueEmpty)
+func (p *Parser) fieldUmarshal(field reflect.Value, cell *Cell, serializerName string) error {
+	fieldType := field.Type()
+	newField := reflect.New(fieldType)
+
+	var serializer Serializer
+	var ok bool
+	if IsDefaultSerializer(serializerName) {
+		serializer = DefaultSerializer
+	} else {
+		if serializer, ok = p.serializers[serializerName]; !ok {
+			return NewError(p.FileName, p.currentSheetName, cell.Coordinates, ErrorSerializerNotExist)
+		}
 	}
+
+	if len(cell.Value) > 0 {
+		err := serializer.Unmarshal(cell.Value, newField.Interface())
+		if err != nil {
+			return NewError(p.FileName, p.currentSheetName, cell.Coordinates, err)
+		}
+	}
+
+	if !field.CanSet() {
+		return NewError(p.FileName, p.currentSheetName, cell.Coordinates, ErrorFieldNotSet)
+	}
+
+	fmt.Println(fieldType.Kind().String(), newField.Type().String())
+
+	field.Set(newField.Elem())
+	return nil
+}
+
+func (p *Parser) fieldSetAll(field reflect.Value, cell *Cell, defaultValue string) error {
+	value := cell.Value
 	if value == "" {
 		value = defaultValue
 	}
+
 	var err error
 	switch field.Kind() {
 	case reflect.Ptr:
@@ -194,7 +218,7 @@ func (p *Parser) filedSetAll(field reflect.Value, cell *Cell, defaultValue strin
 			if realVal.IsNil() {
 				realVal = reflect.New(valElemType)
 				if value != "" {
-					err = p.filedSet(realVal.Elem(), value, cell)
+					err = p.fieldSet(realVal.Elem(), value, cell)
 					field.Set(realVal)
 				} else {
 					field.Set(reflect.Zero(valType))
@@ -205,7 +229,7 @@ func (p *Parser) filedSetAll(field reflect.Value, cell *Cell, defaultValue strin
 		}
 	default:
 		if field.CanSet() {
-			err = p.filedSet(field, value, cell)
+			err = p.fieldSet(field, value, cell)
 		} else {
 			err = NewError(p.FileName, p.currentSheetName, cell.Coordinates, ErrorFieldNotSet)
 		}
@@ -216,7 +240,7 @@ func (p *Parser) filedSetAll(field reflect.Value, cell *Cell, defaultValue strin
 	return nil
 }
 
-func (p *Parser) filedSet(field reflect.Value, value string, cell *Cell) error {
+func (p *Parser) fieldSet(field reflect.Value, value string, cell *Cell) error {
 	if !field.IsValid() {
 		fmt.Println(field.Kind())
 		return NewError(p.FileName, p.currentSheetName, cell.Coordinates, ErrorFieldNotSet)
@@ -251,111 +275,4 @@ func (p *Parser) filedSet(field reflect.Value, value string, cell *Cell) error {
 		return NewError(p.FileName, p.currentSheetName, cell.Coordinates, ErrorFieldTypeNotSupport)
 	}
 	return nil
-}
-func (p *Parser) getExcelFileData() (*Data, error) {
-	fileName := p.FileName
-	sheetMap := p.excelFile.GetSheetMap()
-	if nil == sheetMap || len(sheetMap) == 0 {
-		return nil, NewError(fileName, "", "", ErrorNoSheet)
-	}
-
-	sheetIndexData := make(map[int]*SheetData)
-	sheetNameData := make(map[string]*SheetData)
-	for sheetIndex, sheetName := range sheetMap {
-		rows, err := p.excelFile.GetRows(sheetName)
-		if err != nil {
-			return nil, NewError(fileName, sheetName, fmt.Sprintf("sheet index %d", sheetIndex), err)
-		}
-		if len(rows) == 0 {
-			sheetData := &SheetData{
-				SheetName:       sheetName,
-				FileName:        fileName,
-				DataIndexOffset: p.DataIndexOffset,
-			}
-			sheetIndexData[sheetIndex] = sheetData
-			sheetNameData[sheetName] = sheetData
-			continue
-		}
-		// 输入数据为excel直观的行数 从1开始
-		sheetFields := rows[p.fieldHeadRowIndex-1]
-
-		fieldValid := make([]string, 0)
-		repeatFieldName := ""
-		for _, fieldName := range sheetFields {
-			if sliceutil.InSlice(fieldName, fieldValid) {
-				repeatFieldName = fieldName
-				break
-			}
-			fieldValid = append(fieldValid, fieldName)
-		}
-		// 检查是否有相同字段
-		if !p.AllowFieldRepeat && repeatFieldName != "" {
-			return nil, NewError(fileName, sheetName, fmt.Sprintf("sheet index %d", sheetIndex), ErrorFieldRepeat)
-		}
-
-		parseRows := make(map[int]map[string]*Cell, 0)
-		for index, row := range rows {
-			excelIndex := index + 1
-			if excelIndex <= p.DataIndexOffset {
-				continue
-			}
-			p.getRow(excelIndex, row, sheetFields, parseRows)
-		}
-
-		sheetData := &SheetData{
-			RowTotal:        len(rows),
-			DataTotal:       len(rows) - p.DataIndexOffset,
-			SheetName:       sheetName,
-			FileName:        fileName,
-			Rows:            parseRows,
-			FieldKeys:       sheetFields,
-			DataIndexOffset: p.DataIndexOffset,
-		}
-
-		sheetIndexData[sheetIndex] = sheetData
-		sheetNameData[sheetName] = sheetData
-	}
-
-	excelData := &Data{
-		FileName:       fileName,
-		SheetIndexData: sheetIndexData,
-		SheetNameData:  sheetNameData,
-		SheetTotal:     p.excelFile.SheetCount,
-		SheetList:      p.excelFile.GetSheetList(),
-	}
-
-	return excelData, nil
-}
-
-func (p *Parser) getRow(rowIndex int, rawRow, sheetFields []string, rowsData map[int]map[string]*Cell) {
-	rowData := make(map[string]*Cell, 0)
-	// excel起始行为1，所以这里要+1
-	for colIndex, fieldName := range sheetFields {
-		cell := &Cell{
-			RowIndex: rowIndex,
-			ColIndex: colIndex + 1,
-			Key:      fieldName,
-		}
-		var c string
-		var err error
-		if p.IsCoordinatesABS {
-			c, err = excelize.CoordinatesToCellName(colIndex+1, rowIndex, true)
-		} else {
-			c, err = excelize.CoordinatesToCellName(colIndex+1, rowIndex)
-		}
-		if err != nil {
-			cell.ErrMsg = c
-		}
-		// 当前列索引大于当前行长度，说明当前行数据不足，当前列为空
-		if colIndex > len(rawRow)-1 {
-			cell.IsEmpty = true
-		} else {
-			cell.Value = rawRow[colIndex]
-			cell.IsEmpty = p.IsEmptyFunc(rawRow[colIndex])
-		}
-		cell.Coordinates = c
-		rowData[fieldName] = cell
-	}
-
-	rowsData[rowIndex] = rowData
 }

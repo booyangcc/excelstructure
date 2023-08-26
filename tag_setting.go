@@ -20,6 +20,8 @@ type TagSetting struct {
 	Default string
 	Comment string
 	Skip    bool
+	// RegisterSerializer 注册序列化器
+	Serializer string
 }
 
 func parseTagSetting(str, sep, kvSep string) map[string]string {
@@ -40,25 +42,26 @@ func parseTagSetting(str, sep, kvSep string) map[string]string {
 	return settings
 }
 
-func parseFiledTagSetting(sliceElemType reflect.Type) map[string]TagSetting {
-	tagFiledMap := make(map[string]TagSetting)
+func parseFieldTagSetting(sliceElemType reflect.Type) map[string]TagSetting {
+	tagFieldMap := make(map[string]TagSetting)
 
 	for i := 0; i < sliceElemType.NumField(); i++ {
 		field := sliceElemType.Field(i)
 		tag := field.Tag.Get(TagName)
-		if _, ok := tagFiledMap[field.Name]; ok {
+		if _, ok := tagFieldMap[field.Name]; ok {
 			continue
 		}
 		kvm := parseTagSetting(tag, ";", ":")
-		tagFiled := TagSetting{
-			Column:  kvm["column"],
-			Type:    kvm["type"],
-			Default: kvm["default"],
-			Comment: kvm["comment"],
-			Skip:    kvm["skip"] == "skip",
+		tagField := TagSetting{
+			Column:     kvm["column"],
+			Type:       kvm["type"],
+			Default:    kvm["default"],
+			Comment:    kvm["comment"],
+			Skip:       kvm["skip"] == "skip",
+			Serializer: kvm["serializer"],
 		}
-		tagFiledMap[field.Name] = tagFiled
+		tagFieldMap[field.Name] = tagField
 	}
 
-	return tagFiledMap
+	return tagFieldMap
 }

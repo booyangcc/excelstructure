@@ -2,9 +2,10 @@ package excelstructure
 
 import (
 	"fmt"
+	"reflect"
+
 	"github.com/hashicorp/go-multierror"
 	"github.com/xuri/excelize/v2"
-	"reflect"
 )
 
 // Write struct to excel
@@ -29,7 +30,7 @@ func (p *Parser) writeToExcel(fileName string, input interface{}) (errs error) {
 		errs = multierror.Append(errs, err)
 		return
 	}
-	tagMap := parseFiledTagSetting(sliceElemStructType)
+	tagMap := parseFieldTagSetting(sliceElemStructType)
 
 	excelFile := excelize.NewFile()
 
@@ -74,24 +75,25 @@ func (p *Parser) writeData(ef *excelize.File, tagMap map[string]TagSetting, rv r
 			elemValue = elemValue.Elem()
 		}
 		rowData := make([]interface{}, 0)
+
 		fmt.Println(elemValue.String(), elemType.String(), elemType.NumField())
 		for j := 0; j < elemType.NumField(); j++ {
 			field := elemType.Field(i)
-			filedTagSetting, ok := tagMap[field.Name]
+			fieldTagSetting, ok := tagMap[field.Name]
 			if !ok {
-				filedTagSetting = TagSetting{
+				fieldTagSetting = TagSetting{
 					Column: field.Name,
 				}
 			}
-			if filedTagSetting.Column == "-" || filedTagSetting.Skip {
+			if fieldTagSetting.Column == "-" || fieldTagSetting.Skip {
 				continue
 			}
 			realElemValue := elemValue.Field(j).Interface()
 			if elemValue.Field(j).Kind() == reflect.Ptr {
 				realElemValue = elemValue.Field(j).Elem().Interface()
 			}
-			if elemValue.Field(j).IsZero() && filedTagSetting.Default != "" {
-				realElemValue = filedTagSetting.Default
+			if elemValue.Field(j).IsZero() && fieldTagSetting.Default != "" {
+				realElemValue = fieldTagSetting.Default
 			}
 			rowData = append(rowData, realElemValue)
 		}
@@ -120,18 +122,18 @@ func (p *Parser) writeHead(ef *excelize.File, tagMap map[string]TagSetting, slic
 
 	for i := 0; i < sliceElemType.NumField(); i++ {
 		field := sliceElemType.Field(i)
-		filedTagSetting, ok := tagMap[field.Name]
+		fieldTagSetting, ok := tagMap[field.Name]
 		if !ok {
-			filedTagSetting = TagSetting{
+			fieldTagSetting = TagSetting{
 				Column: field.Name,
 			}
 		}
-		if filedTagSetting.Column == "-" || filedTagSetting.Skip {
+		if fieldTagSetting.Column == "-" || fieldTagSetting.Skip {
 			continue
 		}
-		heads = append(heads, filedTagSetting.Column)
+		heads = append(heads, fieldTagSetting.Column)
 		if hasComment {
-			comments = append(comments, filedTagSetting.Comment)
+			comments = append(comments, fieldTagSetting.Comment)
 		}
 	}
 

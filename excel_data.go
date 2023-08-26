@@ -2,9 +2,10 @@ package excelstructure
 
 import (
 	"fmt"
+	"strconv"
+
 	sliceutil "github.com/booyangcc/utils/sliceutil"
 	"github.com/hashicorp/go-multierror"
-	"strconv"
 )
 
 // Cell excel cell info
@@ -26,7 +27,7 @@ type SheetData struct {
 	DataTotal int
 	SheetName string
 	FileName  string
-	// Rows  map[rowIndex]map[keyFiled]*Cell
+	// Rows  map[rowIndex]map[keyField]*Cell
 	Rows      map[int]map[string]*Cell
 	FieldKeys []string
 	// DataIndexOffset data index offset.
@@ -53,12 +54,12 @@ func (s *SheetData) GetCell(rowIndex int, fieldKey string, isCheckEmpty ...bool)
 	row := s.Rows[rowIndex]
 	if !sliceutil.InSlice(fieldKey, s.FieldKeys) {
 		return nil, NewError(s.FileName, s.SheetName,
-			fmt.Sprintf("rowIndex %d, filedKey %s", rowIndex, fieldKey), ErrorFieldNotExist)
+			fmt.Sprintf("rowIndex %d, fieldKey %s", rowIndex, fieldKey), ErrorFieldNotExist)
 	}
 	cell, ok := row[fieldKey]
 	if !ok {
 		return nil, NewError(s.FileName, s.SheetName,
-			fmt.Sprintf("rowIndex %d, filedKey %s", rowIndex, fieldKey), ErrorFieldNotExist)
+			fmt.Sprintf("rowIndex %d, fieldKey %s", rowIndex, fieldKey), ErrorFieldNotExist)
 	}
 
 	isCheck := false
@@ -68,7 +69,7 @@ func (s *SheetData) GetCell(rowIndex int, fieldKey string, isCheckEmpty ...bool)
 
 	if isCheck && cell.IsEmpty {
 		return nil, NewError(s.FileName, s.SheetName,
-			fmt.Sprintf("rowIndex %d, filedKey %s", rowIndex, fieldKey), ErrorFieldValueEmpty)
+			fmt.Sprintf("rowIndex %d, fieldKey %s", rowIndex, fieldKey), ErrorFieldValueEmpty)
 	}
 
 	return cell, nil

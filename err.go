@@ -37,6 +37,13 @@ var (
 	ErrorFieldValueEmpty = errors.New("value is empty")
 	// ErrorNoData no data
 	ErrorNoData = errors.New("no data")
+
+	// ErrorSerializerNameRepeat serializer name repeat
+	ErrorSerializerNameRepeat = errors.New("serializer name repeat")
+	// ErrorSerializerHandlerEmpty serializer handler empty
+	ErrorSerializerHandlerEmpty = errors.New("serializer marshal or unmarshal handler empty")
+	// ErrorSerializerNotExist serializer not exist
+	ErrorSerializerNotExist = errors.New("serializer not exist")
 )
 
 // Error excel structure error
