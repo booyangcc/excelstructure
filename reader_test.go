@@ -55,18 +55,14 @@ func Test_ParseReadWithCheckEmpty(t *testing.T) {
 	require.Equal(t, "booyang", info[0].Name)
 }
 
-type Detail struct {
-	Height int    `json:"height"`
-	Weight int    `json:"weight"`
-	Nation string `json:"nation"`
-}
+
 
 type Person struct {
 	Name    string   `excel:"column:user_name;comment:person name"`
 	Age     int      `excel:"column:age;"`
 	Man     bool     `excel:"column:man;default:true"`
 	Address []string `excel:"column:address;serializer"`
-	Details *Detail  `excel:"column:details;serializer:json"`
+	Details Detail   `excel:"column:details;serializer:json"`
 }
 
 func Test_ParseReadWithSerializer(t *testing.T) {

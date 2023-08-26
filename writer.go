@@ -74,28 +74,60 @@ func (p *Parser) writeData(ef *excelize.File, tagMap map[string]TagSetting, rv r
 			elemType = elemType.Elem()
 			elemValue = elemValue.Elem()
 		}
-		rowData := make([]interface{}, 0)
 
-		fmt.Println(elemValue.String(), elemType.String(), elemType.NumField())
+		rowData := make([]interface{}, 0, elemType.NumField())
 		for j := 0; j < elemType.NumField(); j++ {
-			field := elemType.Field(i)
+			field := elemType.Field(j)
 			fieldTagSetting, ok := tagMap[field.Name]
 			if !ok {
 				fieldTagSetting = TagSetting{
-					Column: field.Name,
+					Column:     field.Name,
+					Serializer: JSONSerializerName,
 				}
 			}
 			if fieldTagSetting.Column == "-" || fieldTagSetting.Skip {
 				continue
 			}
-			realElemValue := elemValue.Field(j).Interface()
-			if elemValue.Field(j).Kind() == reflect.Ptr {
-				realElemValue = elemValue.Field(j).Elem().Interface()
+
+			elemValueField := elemValue.Field(j)
+			realElemValue := elemValueField.Interface()
+
+			fieldType := field.Type.Kind()
+			if fieldType == reflect.Ptr {
+				fieldType = field.Type.Elem().Kind()
 			}
-			if elemValue.Field(j).IsZero() && fieldTagSetting.Default != "" {
-				realElemValue = fieldTagSetting.Default
+			if fieldType == reflect.Slice || fieldType == reflect.Map || fieldType == reflect.Struct ||
+				fieldType == reflect.Interface {
+				if len(fieldTagSetting.Serializer) == 0 {
+					fieldTagSetting.Serializer = JSONSerializerName
+				}
+
+				var serializer Serializer
+				var ok bool
+				if IsDefaultSerializer(fieldTagSetting.Serializer) {
+					serializer = DefaultSerializer
+				} else {
+					serializer, ok = p.serializers[fieldTagSetting.Serializer]
+					if !ok {
+						return NewError(p.FileName, p.currentSheetName, "", ErrorSerializerNotExist)
+					}
+				}
+
+				v, err := serializer.Marshal(realElemValue)
+				if err != nil {
+					return NewError(p.FileName, p.currentSheetName, "", err)
+				}
+				rowData = append(rowData, v)
+			} else {
+				if elemValueField.Kind() == reflect.Ptr {
+					realElemValue = elemValueField.Elem().Interface()
+				}
+				if elemValueField.IsZero() && fieldTagSetting.Default != "" {
+					realElemValue = fieldTagSetting.Default
+				}
+				rowData = append(rowData, realElemValue)
 			}
-			rowData = append(rowData, realElemValue)
+
 		}
 
 		coords, err := excelize.CoordinatesToCellName(1, p.DataIndexOffset+i+1)
