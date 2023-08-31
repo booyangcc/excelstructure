@@ -9,8 +9,8 @@ import (
 
 func Test_ParseReadWithSheetIndex(t *testing.T) {
 	var info []*Info
-	p := NewParser("./test_excel_file/test.xlsx")
-	err := p.ReadWithSheetName("Sheet1", &info)
+	p := NewParser()
+	err := p.ReadWithSheetName("./test_excel_file/test.xlsx", "Sheet1", &info)
 	if err != nil {
 		assert.Error(t, err)
 	}
@@ -20,8 +20,8 @@ func Test_ParseReadWithSheetIndex(t *testing.T) {
 
 func Test_ParseRead(t *testing.T) {
 	var info []*Info
-	p := NewParser("./test_excel_file/test.xlsx")
-	err := p.Read(&info)
+	p := NewParser()
+	err := p.Read("./test_excel_file/test.xlsx", &info)
 	if err != nil {
 		assert.Error(t, err)
 	}
@@ -33,9 +33,9 @@ func Test_ParseRead(t *testing.T) {
 // first row is title,second row is comment
 func Test_ParseReadWithComment(t *testing.T) {
 	var info []*Info
-	p := NewParser("./test_excel_file/test_with_comment.xlsx")
+	p := NewParser()
 	p.DataIndexOffset = 2
-	err := p.Read(&info)
+	err := p.Read("./test_excel_file/test_with_comment.xlsx", &info)
 	if err != nil {
 		assert.Error(t, err)
 	}
@@ -45,9 +45,9 @@ func Test_ParseReadWithComment(t *testing.T) {
 
 func Test_ParseReadWithCheckEmpty(t *testing.T) {
 	var info []*Info
-	p := NewParser("./test_excel_file/test_check_empty.xlsx")
+	p := NewParser()
 	p.IsCheckEmpty = true
-	err := p.Read(&info)
+	err := p.Read("./test_excel_file/test_check_empty.xlsx", &info)
 	// one row is empty, so the error is not nil, "C3 field age value is empty"
 	assert.Error(t, err)
 	// length is 4, but one row is empty, so the length is 3
@@ -65,8 +65,8 @@ type Person struct {
 
 func Test_ParseReadWithSerializer(t *testing.T) {
 	var persons []*Person
-	p := NewParser("./test_excel_file/test_serializer.xlsx")
-	err := p.Read(&persons)
+	p := NewParser()
+	err := p.Read("./test_excel_file/test_serializer.xlsx", &persons)
 	assert.NoError(t, err)
 	require.Equal(t, 2, len(persons))
 	require.Equal(t, "booyang1", persons[0].Name)
@@ -74,4 +74,18 @@ func Test_ParseReadWithSerializer(t *testing.T) {
 	require.Equal(t, 2, len(persons[0].Address))
 	// {"height":180,"weight":70,"nation":"China"}
 	require.Equal(t, "China", persons[0].Detail.Nation)
+}
+
+func Test_ParseReadWithMultiSheet(t *testing.T) {
+	var infos1, infos2 []*Info
+	p := NewParser()
+	_ = p.RegisterSerializer("mySerializer", mySerializer)
+	p.DataIndexOffset = 2
+	err := p.ReadWithMultiSheet("./test_excel_file/test_write_multi.xlsx", map[string]interface{}{
+		"infos1": &infos1,
+		"infos2": &infos2,
+	})
+	assert.NoError(t, err)
+	require.Equal(t, "booyang_sheet1", infos1[0].Name)
+	require.Equal(t, "booyang_sheet2", infos2[0].Name)
 }

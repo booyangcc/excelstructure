@@ -7,8 +7,8 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestWriter_Marshal(t *testing.T) {
-	w := NewParser("./test_excel_file/test_write.xlsx")
+func TestWriter_Write(t *testing.T) {
+	w := NewParser()
 	infos := []*Info{
 		{
 			Name:    "booyang",
@@ -25,7 +25,50 @@ func TestWriter_Marshal(t *testing.T) {
 			Address: []string{"beijing", "shanghai"},
 		},
 	}
-	err := w.Write(infos)
+	err := w.Write("./test_excel_file/test_write.xlsx", "infos", infos)
+	assert.NoError(t, err)
+}
+
+func TestWriter_WriteMulti(t *testing.T) {
+	w := NewParser()
+	_ = w.RegisterSerializer("mySerializer", mySerializer)
+	infos1 := []*Info{
+		{
+			Name:    "booyang_sheet1",
+			Phone:   convutil.String("123456789"),
+			Age:     "18",
+			Man:     true,
+			Address: []string{"beijing", "shanghai"},
+		},
+		{
+			Name:    "booyang1_sheet1",
+			Phone:   convutil.String("123456789"),
+			Age:     "14",
+			Man:     false,
+			Address: []string{"beijing", "shanghai"},
+		},
+	}
+
+	infos2 := []*Info{
+		{
+			Name:    "booyang_sheet2",
+			Phone:   convutil.String("123456789"),
+			Age:     "18",
+			Man:     true,
+			Address: []string{"beijing", "shanghai"},
+		},
+		{
+			Name:    "booyang1_sheet2",
+			Phone:   convutil.String("123456789"),
+			Age:     "14",
+			Man:     false,
+			Address: []string{"beijing", "shanghai"},
+		},
+	}
+	err := w.WriteWithMultiSheet("./test_excel_file/test_write_multi.xlsx", map[string]interface{}{
+		"infos1": infos1,
+		"infos2": infos2,
+	})
 	assert.NoError(t, err)
 }
 
@@ -68,7 +111,7 @@ func Test_WriterSerializer(t *testing.T) {
 			},
 		},
 	}
-	w := NewParser("./test_excel_file/test_serializer_write.xlsx")
-	err := w.Write(persons)
+	w := NewParser()
+	err := w.Write("./test_excel_file/test_serializer_write.xlsx", "", persons)
 	assert.NoError(t, err)
 }

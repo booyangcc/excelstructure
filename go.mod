@@ -1,6 +1,6 @@
 module github.com/booyangcc/excelstructure
 
-go 1.20
+go 1.19
 
 require (
 	github.com/booyangcc/utils v0.0.0-20230816045415-26b65f4b946b

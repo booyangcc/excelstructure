@@ -10,7 +10,35 @@ excelstructure is a tool for converting between Excel and Go struct. It can conv
 
 `go get github.com/booyangcc/excelstructure`
 
-### Example
+### Simple Usage
+
+```golang
+infos := []*Info{
+    {
+        Name:    "booyang",
+        Phone:   convutil.String("123456789"),
+    },
+}
+
+p := NewParser()
+// Because the struct fields have comment tags, the data starts from the third row when writing, so the data offset when reading is 2
+p.DataIndexOffset = 2
+// Write
+err = p.Write("./test_excel_file/test_write.xlsx", "Infos", infos)
+if err != nil {
+    fmt.Println(err)
+}
+
+var newInfo []*Info
+// Read
+err = p.Read("./test_excel_file/test_write.xlsx", &newInfo)
+if err != nil {
+    fmt.Println(err)
+}
+
+```
+
+### Complete Example
 
 ```golang
 package main
@@ -20,6 +48,7 @@ import (
 	"github.com/booyangcc/utils/convutil"
     "github.com/booyangcc/excelstructure"
 )
+
 
 type Detail struct {
 	Height int    `json:"height"`
@@ -33,10 +62,11 @@ type Info struct {
 	Age     string   `excel:"column:age;"`
 	Man     bool     `excel:"column:man;default:true"`
 	Address []string `excel:"column:address;serializer:mySerializer"`
-	Detail Detail   `excel:"column:details;serializer:mySerializer"` // u can use custom serializer,default json serializer
+	Detail  Detail   `excel:"column:details;serializer:mySerializer"` // You can use custom serializer, default use json, here we use our custom serializer mySerializer
 }
 
 var (
+	// Custom serializer
 	mySerializer = Serializer{
 		Marshal: func(v interface{}) (string, error) {
 			bs, err := json.Marshal(v)
@@ -51,6 +81,7 @@ var (
 	}
 )
 
+// TestWriteRead Usage 1, write and read to struct
 func TestWriteRead() {
 	infos := []*Info{
 		{
@@ -78,29 +109,63 @@ func TestWriteRead() {
 			},
 		},
 	}
-	p := NewParser("./test_excel_file/test_write.xlsx")
-	// use custom serializer
-	p.RegisterSerializer("mySerializer", mySerializer)
-	err := p.Write(infos)
+	p := NewParser()
+	// Register custom serializer
+	err := p.RegisterSerializer("mySerializer", mySerializer)
+	if err != nil {
+		return
+	}
+	// Write to single sheet
+	err = p.Write("./test_excel_file/test_write.xlsx", "Infos", infos)
 	if err != nil {
 		fmt.Println(err)
 	}
 
-	// because the struct field has comment tag, so the comment has been written to row 2, so when read, data offset is 2
+	/*
+		// Write to two sheets, Info1 and Info2, with the same data
+		err = p.WriteWithMultiSheet("./test_excel_file/test_write_multi.xlsx", map[string]interface{}{
+			"Info1": infos,
+			"Info2": infos,
+		})
+		if err != nil {
+			fmt.Println(err)
+		}
+	*/
+	// Because the struct fields have comment tags, the data starts from the third row when writing, so the data offset when reading is 2
 	p.DataIndexOffset = 2
 	var newInfo []*Info
-	err = p.Read(&newInfo)
+
+	err = p.Read("./test_excel_file/test_write.xlsx", &newInfo)
 	if err != nil {
 		fmt.Println(err)
 	}
+	/*
+		// Read from multiple sheets, read Info1 and Info2 to newInfo1 and newInfo2
+		var newInfo1 []*Info
+		var newInfo2 []*Info
+		err = p.ReadWithMultiSheet("./test_excel_file/test_write_multi.xlsx", map[string]interface{}{
+			"Info1": &newInfo1,
+			"Info2": &newInfo2,
+		})
+	*/
+	if err != nil {
+		fmt.Println(err)
+	}
+
 	fmt.Printf("oldInfo: %+v, newInfo: %+v", infos, newInfo)
 }
 
+// TestParse Usage 2, directly get the data of a column in a row
 func TestParse() {
-	p := NewParser("./test_excel_file/test_write.xlsx")
-	// because the struct field has comment tag, so the comment has been written to row 2, so when read, data offset is 2
+	p := NewParser()
+	// Use custom serializer
+	err := p.RegisterSerializer("mySerializer", mySerializer)
+	if err != nil {
+		return
+	}
+	// Because the struct fields have comment tags, the data starts from the third row when writing, so the data offset when reading is 2
 	p.DataIndexOffset = 2
-	excelData, err := p.Parse()
+	excelData, err := p.Parse("./test_excel_file/test_write.xlsx")
 	if err != nil {
 		fmt.Println(err)
 	}
@@ -130,6 +195,7 @@ func TestParse() {
 }
 
 ```
+
 ***excel data*** output excel
 ![输出数据](./imgs/test_write.png)
 
@@ -153,53 +219,4 @@ Parser parameters:
 - IsCoordinatesABS: the type of cell coordinate value. If true, the coordinate is A1. If false, the coordinate is 1.
 - ExcelData: the parsed data values
 - AllowFieldRepeat: whether to allow duplicate fields. If true, the fields will be overwritten.
-### Parse Struct to Excel
-```golang
-p := excelstructure.NewParser("./test_write.xlsx")
-p.RegisterSerializer("mySerializer", mySerializer)
-err := p.Write(infos)  
-if err != nil {  
-    fmt.Println(err)  
-}  
-```
-### Parsing Excel to Struct
-#### Method 1: Parse Directly to Struct
-```golang
-p := NewParser("./test_write.xlsx")  
-p.RegisterSerializer("mySerializer", mySerializer)
-
-// because the struct field has comment tag, so the comment has been written to row 2, so when read, data offset is 2
-p.DataIndexOffset = 2
-var newInfo []*Info
-err = p.Read(&newInfo)
-if err != nil {
-        fmt.Println(err)
-}
-```
-#### Method 2: Get the Value of a Single Field in a Row
-```golang
-p := NewParser("./test_write.xlsx")
-// Since the struct being written has a comment field, the second row in the Excel file will be a comment, so the data index offset is 2
-p.DataIndexOffset = 2  
-excelData, err := p.Parse()  
-if err != nil {  
-fmt.Println(err)  
-}  
-  
-s := excelData.SheetNameData["Infos"]  
-row3UserName, err := s.GetStringValue(3, "user_name")  
-if err != nil {  
-fmt.Println(err)  
-}  
-  
-row3age, err := s.GetIntValue(3, "age")  
-if err != nil {  
-fmt.Println(err)  
-}  
-fmt.Println(row3UserName, row3age)
-```
-
-
-
-
 

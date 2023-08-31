@@ -9,8 +9,8 @@ import (
 )
 
 func Test_GetIntValue1(t *testing.T) {
-	p := NewParser("./test_excel_file/test.xlsx")
-	data, err := p.Parse()
+	p := NewParser()
+	data, err := p.Parse("./test_excel_file/test.xlsx")
 	if err != nil {
 		fmt.Println(err)
 	}

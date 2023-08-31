@@ -22,7 +22,7 @@ var boolTrueValue = []string{
 
 // Parser parser.
 type Parser struct {
-	FileName string
+	fileName string
 	// DataIndexOffset 数据索引偏移量,第一行可能为表头，则偏移量为1，如果有注释占用一行，则为2
 	DataIndexOffset int
 	// BoolTrueValues bool类型的true可选值 boolTrueValue
@@ -54,9 +54,8 @@ type Parser struct {
 //	ExcelTag excel tag:
 //		ExcelField: map the excel head field
 //		ExcelDefault: if excel field is empty, use this default value
-func NewParser(fileName string) *Parser {
+func NewParser() *Parser {
 	return &Parser{
-		FileName:          fileName,
 		DataIndexOffset:   1,
 		fieldHeadRowIndex: 1,
 		BoolTrueValues:    boolTrueValue,
@@ -86,9 +85,8 @@ func (p *Parser) RegisterSerializer(name string, serializer Serializer) error {
 }
 
 // Parse parse.
-func (p *Parser) Parse() (*Data, error) {
-
-	fileName := p.FileName
+func (p *Parser) Parse(fileName string) (*Data, error) {
+	p.fileName = fileName
 	excelFile, err := excelize.OpenFile(fileName)
 	if err != nil {
 		return nil, NewError(fileName, "", "", err)
@@ -117,7 +115,7 @@ func (p *Parser) Parse() (*Data, error) {
 }
 
 func (p *Parser) getExcelFileData() (*Data, error) {
-	fileName := p.FileName
+	fileName := p.fileName
 	sheetMap := p.excelFile.GetSheetMap()
 	if nil == sheetMap || len(sheetMap) == 0 {
 		return nil, NewError(fileName, "", "", ErrorNoSheet)

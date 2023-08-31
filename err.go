@@ -66,6 +66,6 @@ func NewError(filName string, sheetName string, coordinates string, err error) e
 
 // Error error
 func (e *Error) Error() string {
-	return fmt.Sprintf("FileName: %s, SheetName: %s, Coordinates: %s , ErrMsg: %s",
+	return fmt.Sprintf("fileName: %s, SheetName: %s, Coordinates: %s , ErrMsg: %s",
 		e.FileName, e.SheetName, e.Coordinates, e.Err.Error())
 }

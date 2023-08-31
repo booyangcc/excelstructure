@@ -8,61 +8,86 @@ import (
 	"github.com/xuri/excelize/v2"
 )
 
-// Write struct to excel
-func (p *Parser) Write(input interface{}) error {
-	return p.writeToExcel(p.FileName, input)
+// Write  写入单个sheet
+// sheetName sheet名称，为空则为结构体元素的类型+s
+// input必须是slice，slice的元素必须是struct
+func (p *Parser) Write(fileName, sheetName string, input interface{}) error {
+	return p.WriteWithMultiSheet(fileName, map[string]interface{}{
+		"": input,
+	})
 }
 
-func (p *Parser) writeToExcel(fileName string, input interface{}) (errs error) {
+// WriteWithSheetName  写入单个sheet
+// input必须是slice，slice的元素必须是struct
+func (p *Parser) WriteWithSheetName(fileName, sheetName string, input interface{}) error {
+	return p.WriteWithMultiSheet(fileName, map[string]interface{}{
+		sheetName: input,
+	})
+}
+
+// WriteWithMultiSheet 写入多个结构体到多个sheet，key为sheetName，value为slice
+func (p *Parser) WriteWithMultiSheet(fileName string, inputMap map[string]interface{}) error {
+	excelFile := excelize.NewFile()
+	p.fileName = fileName
+
+	for sheetName, input := range inputMap {
+		p.currentSheetName = sheetName
+		// 返回的错误是多个错误的集合，已经是封装过的故直接返回
+		err := p.writeToSheet(excelFile, input)
+		if err != nil {
+			return err
+		}
+	}
+	sheetList := excelFile.GetSheetList()
+	err := excelFile.DeleteSheet(sheetList[0])
+	if err != nil {
+		return NewError(p.fileName, "", "", err)
+	}
+
+	if err = excelFile.SaveAs(p.fileName); err != nil {
+		return NewError(p.fileName, "", "", err)
+	}
+
+	return nil
+}
+
+func (p *Parser) writeToSheet(excelFile *excelize.File, input interface{}) (errs error) {
 	rv := reflect.Indirect(reflect.ValueOf(input))
 	if rv.Kind() != reflect.Slice {
 		errs = multierror.Append(errs,
-			NewError(p.FileName, p.currentSheetName, "", ErrorInOutputType))
+			NewError(p.fileName, p.currentSheetName, "", ErrorInOutputType))
 		return
 	}
 
-	if rv.Len() == 0 {
-		return
-	}
-
-	sliceElemStructType, err := getSliceElemType(p.FileName, p.currentSheetName, rv)
+	sliceElemStructType, err := getSliceElemType(p.fileName, p.currentSheetName, rv)
 	if err != nil {
 		errs = multierror.Append(errs, err)
 		return
 	}
+
+	if len(p.currentSheetName) == 0 {
+		p.currentSheetName = fmt.Sprintf("%ss", sliceElemStructType.Name())
+	}
+
+	_, err = excelFile.NewSheet(p.currentSheetName)
+	if err != nil {
+		errs = multierror.Append(errs, err)
+		return
+	}
+
 	tagMap := parseFieldTagSetting(sliceElemStructType)
-
-	excelFile := excelize.NewFile()
-
-	sheetName := fmt.Sprintf("%ss", sliceElemStructType.Name())
-	_, err = excelFile.NewSheet(sheetName)
-	if err != nil {
-		errs = multierror.Append(errs, err)
-		return
-	}
-	p.currentSheetName = sheetName
-
 	err = p.writeHead(excelFile, tagMap, sliceElemStructType)
 	if err != nil {
 		errs = multierror.Append(errs, err)
 		return
 	}
+
 	err = p.writeData(excelFile, tagMap, rv)
 	if err != nil {
 		errs = multierror.Append(errs, err)
 		return
 	}
 
-	err = excelFile.DeleteSheet(excelFile.GetSheetList()[0])
-	if err != nil {
-		errs = multierror.Append(errs, err)
-		return
-	}
-
-	if err = excelFile.SaveAs(fileName); err != nil {
-		errs = multierror.Append(errs,
-			NewError(p.FileName, p.currentSheetName, "", err))
-	}
 	return
 }
 
@@ -109,13 +134,13 @@ func (p *Parser) writeData(ef *excelize.File, tagMap map[string]TagSetting, rv r
 				} else {
 					serializer, ok = p.serializers[fieldTagSetting.Serializer]
 					if !ok {
-						return NewError(p.FileName, p.currentSheetName, "", ErrorSerializerNotExist)
+						return NewError(p.fileName, p.currentSheetName, "", ErrorSerializerNotExist)
 					}
 				}
 
 				v, err := serializer.Marshal(realElemValue)
 				if err != nil {
-					return NewError(p.FileName, p.currentSheetName, "", err)
+					return NewError(p.fileName, p.currentSheetName, "", err)
 				}
 				rowData = append(rowData, v)
 			} else {
@@ -134,6 +159,7 @@ func (p *Parser) writeData(ef *excelize.File, tagMap map[string]TagSetting, rv r
 		if err != nil {
 			return err
 		}
+
 		err = ef.SetSheetRow(p.currentSheetName, coords, &rowData)
 		if err != nil {
 			return err

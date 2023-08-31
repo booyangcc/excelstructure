@@ -10,20 +10,36 @@ import (
 )
 
 // ReadWithSheetName parse with sheet index. start with 1
-func (p *Parser) ReadWithSheetName(name string, output interface{}) error {
-	excelData, err := p.Parse()
+func (p *Parser) ReadWithSheetName(fileName, sheetName string, output interface{}) error {
+	excelData, err := p.Parse(fileName)
 	if err != nil {
 		return err
 	}
 
-	return p.readToStruct(name, excelData, output)
+	return p.readToStruct(sheetName, excelData, output)
+}
+
+// ReadWithMultiSheet parse with sheetDataMap, key is sheetName, value is output, output must be a pointer slice
+func (p *Parser) ReadWithMultiSheet(fileName string, sheetDataMap map[string]interface{}) error {
+	excelData, err := p.Parse(fileName)
+	if err != nil {
+		return err
+	}
+	fmt.Println(excelData.SheetList)
+	for name, output := range sheetDataMap {
+		err = p.readToStruct(name, excelData, output)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // Parser parse with sheet index 1
 // output must be a pointer slice
 // if the pointer field is pointer, and the value is empty ,the pointer field will be nil
-func (p *Parser) Read(output interface{}) error {
-	excelData, err := p.Parse()
+func (p *Parser) Read(fileName string, output interface{}) error {
+	excelData, err := p.Parse(fileName)
 	if err != nil {
 		return err
 	}
@@ -31,9 +47,9 @@ func (p *Parser) Read(output interface{}) error {
 }
 
 func (p *Parser) readToStruct(sheetName string, excelData *Data, output interface{}) (errs error) {
-	if sliceutil.InSlice(sheetName, excelData.SheetList) {
+	if !sliceutil.InSlice(sheetName, excelData.SheetList) {
 		errs = multierror.Append(errs,
-			NewError(p.FileName, "", fmt.Sprintf("sheetName %s", sheetName), ErrorSheetName))
+			NewError(p.fileName, "", fmt.Sprintf("sheetName %s", sheetName), ErrorSheetName))
 		return
 	}
 
@@ -51,13 +67,13 @@ func (p *Parser) readToStruct(sheetName string, excelData *Data, output interfac
 	rv := reflect.ValueOf(output)
 	if rv.Kind() == reflect.Ptr && rv.Elem().Kind() != reflect.Slice {
 		errs = multierror.Append(errs,
-			NewError(p.FileName, p.currentSheetName, "", ErrorInOutputType))
+			NewError(p.fileName, p.currentSheetName, "", ErrorInOutputType))
 		return
 	}
 
 	sliceType := rv.Elem().Type()
 	sliceElemType := sliceType.Elem()
-	sliceElemStructType, err := getSliceElemType(p.FileName, p.currentSheetName, rv)
+	sliceElemStructType, err := getSliceElemType(p.fileName, p.currentSheetName, rv)
 	if err != nil {
 		errs = multierror.Append(errs, err)
 		return
@@ -111,11 +127,11 @@ func (p *Parser) parseRowToStruct(
 	rowIndex int, sheetData *SheetData, ve reflect.Value, tagMap map[string]TagSetting,
 ) (err error) {
 	if ve.Kind() != reflect.Ptr {
-		return NewError(p.FileName, p.currentSheetName, fmt.Sprintf("row %d", rowIndex), ErrorTypePointer)
+		return NewError(p.fileName, p.currentSheetName, fmt.Sprintf("row %d", rowIndex), ErrorTypePointer)
 	}
 
 	if !ve.IsValid() {
-		return NewError(p.FileName, p.currentSheetName, fmt.Sprintf("row %d", rowIndex), ErrorFieldInvalid)
+		return NewError(p.fileName, p.currentSheetName, fmt.Sprintf("row %d", rowIndex), ErrorFieldInvalid)
 	}
 
 	vek := reflect.Indirect(ve)
@@ -144,7 +160,7 @@ func (p *Parser) parseRowToStruct(
 		}
 
 		if p.IsCheckEmpty && cell.IsEmpty {
-			return NewError(p.FileName, p.currentSheetName, cell.Coordinates, ErrorFieldValueEmpty)
+			return NewError(p.fileName, p.currentSheetName, cell.Coordinates, ErrorFieldValueEmpty)
 		}
 
 		fieldValue := ve.Elem().FieldByName(field.Name)
@@ -180,19 +196,19 @@ func (p *Parser) fieldUmarshal(field reflect.Value, cell *Cell, serializerName s
 		serializer = DefaultSerializer
 	} else {
 		if serializer, ok = p.serializers[serializerName]; !ok {
-			return NewError(p.FileName, p.currentSheetName, cell.Coordinates, ErrorSerializerNotExist)
+			return NewError(p.fileName, p.currentSheetName, cell.Coordinates, ErrorSerializerNotExist)
 		}
 	}
 
 	if len(cell.Value) > 0 {
 		err := serializer.Unmarshal(cell.Value, newField.Interface())
 		if err != nil {
-			return NewError(p.FileName, p.currentSheetName, cell.Coordinates, err)
+			return NewError(p.fileName, p.currentSheetName, cell.Coordinates, err)
 		}
 	}
 
 	if !field.CanSet() {
-		return NewError(p.FileName, p.currentSheetName, cell.Coordinates, ErrorFieldNotSet)
+		return NewError(p.fileName, p.currentSheetName, cell.Coordinates, ErrorFieldNotSet)
 	}
 
 	field.Set(newField.Elem())
@@ -222,13 +238,13 @@ func (p *Parser) fieldSetAll(field reflect.Value, cell *Cell, defaultValue strin
 				}
 			}
 		} else {
-			err = NewError(p.FileName, p.currentSheetName, cell.Coordinates, ErrorFieldNotSet)
+			err = NewError(p.fileName, p.currentSheetName, cell.Coordinates, ErrorFieldNotSet)
 		}
 	default:
 		if field.CanSet() {
 			err = p.fieldSet(field, value, cell)
 		} else {
-			err = NewError(p.FileName, p.currentSheetName, cell.Coordinates, ErrorFieldNotSet)
+			err = NewError(p.fileName, p.currentSheetName, cell.Coordinates, ErrorFieldNotSet)
 		}
 	}
 	if err != nil {
@@ -240,22 +256,22 @@ func (p *Parser) fieldSetAll(field reflect.Value, cell *Cell, defaultValue strin
 func (p *Parser) fieldSet(field reflect.Value, value string, cell *Cell) error {
 	if !field.IsValid() {
 		fmt.Println(field.Kind())
-		return NewError(p.FileName, p.currentSheetName, cell.Coordinates, ErrorFieldNotSet)
+		return NewError(p.fileName, p.currentSheetName, cell.Coordinates, ErrorFieldNotSet)
 	}
 	if !field.CanSet() {
-		return NewError(p.FileName, p.currentSheetName, cell.Coordinates, ErrorFieldNotSet)
+		return NewError(p.fileName, p.currentSheetName, cell.Coordinates, ErrorFieldNotSet)
 	}
 	switch field.Kind() {
 	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
 		intValue, err := strconv.Atoi(value)
 		if err != nil {
-			return NewError(p.FileName, p.currentSheetName, cell.Coordinates, ErrorFieldNotMatch)
+			return NewError(p.fileName, p.currentSheetName, cell.Coordinates, ErrorFieldNotMatch)
 		}
 		field.SetInt(int64(intValue))
 	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
 		uintValue, err := strconv.ParseUint(value, 10, 32)
 		if err != nil {
-			return NewError(p.FileName, p.currentSheetName, cell.Coordinates, ErrorFieldNotMatch)
+			return NewError(p.fileName, p.currentSheetName, cell.Coordinates, ErrorFieldNotMatch)
 		}
 		field.SetUint(uintValue)
 	case reflect.String:
@@ -265,11 +281,11 @@ func (p *Parser) fieldSet(field reflect.Value, value string, cell *Cell) error {
 	case reflect.Float32, reflect.Float64:
 		floatValue, err := strconv.ParseFloat(value, 32)
 		if err != nil {
-			return NewError(p.FileName, p.currentSheetName, cell.Coordinates, ErrorFieldNotMatch)
+			return NewError(p.fileName, p.currentSheetName, cell.Coordinates, ErrorFieldNotMatch)
 		}
 		field.SetFloat(floatValue)
 	default:
-		return NewError(p.FileName, p.currentSheetName, cell.Coordinates, ErrorFieldTypeNotSupport)
+		return NewError(p.fileName, p.currentSheetName, cell.Coordinates, ErrorFieldTypeNotSupport)
 	}
 	return nil
 }
